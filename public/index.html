@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <link rel="stylesheet" href="https://bootswatch.com/4/flatly/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+        #structure {
+            border: 1px solid #aaa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            background-color: rgb(210 233 247);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div>
+        <div id="div1" style="font-size: 30px; width:100%; text-align:center; padding-top:30px;">Loading <img src="loader.gif" /></div>
+    </div>
+    <div id="structure">
+        <h3>Departure</h3>
+        <div class="row">
+            <div class="col-lg-2">
+                Airlines <select id="Dairlines" class="form-control"></select>
+            </div>
+            <div class="col-lg-5">
+                Airports <select id="Dairports" class="form-control"></select>
+            </div>
+            <div class="col-lg-5">
+                Departure Time(s) <select id="Dtime" class="form-control"></select>
+            </div>
+        </div>
+        <div style="padding-top:25px"></div>
+        <h3>Arrival</h3>
+        <div class="row">
+            <div class="col-lg-2">
+                Airlines <select id="Aairlines" class="form-control"></select>
+            </div>
+            <div class="col-lg-5">
+                Airports <select id="Aairports" class="form-control"></select>
+            </div>
+            <div class="col-lg-5">
+                Arrival Time(s) <select id="Atime" class="form-control"></select>
+            </div>
+        </div>
+    </div>
+    <br>
+    <div>
+        <button type="button" class="btn btn-primary btn-lg" id="btnSearch" style="float: right">Search Flights</button>
+    </div>
+    <div class="row" id="resultRow" style="padding:10px;direction: ltr; margin-top:10px;"></div>
+
+</div>
+<script>
+    let airlines = '',
+        airports = '',
+        flights = '';
+
+    const airlinesApi = 'http://localhost:8080/trip_builder/public/api/flights/listOfAirlines',
+          airportsApi = 'http://localhost:8080/trip_builder/public/api/flights/listOfAirports',
+          flightsApi = 'http://localhost:8080/trip_builder/public/api/flights/listOfFlights',
+          getFlightsAPI = 'http://localhost:8080/trip_builder/public/api/flights/flightSearch';
+
+    let $DairlinesDD = $("#Dairlines ");
+    let $DairportsDD = $("#Dairports");
+    let $AairlinesDD = $("#Aairlines");
+    let $AairportsDD = $("#Aairports");
+    let $structure = $('#structure');
+    let $Dtime = $('#Dtime');
+    let $Atime = $('#Atime');
+    let $searchBtn = $('#btnSearch');
+
+    $(function () {
+        $structure.hide();
+        $AairlinesDD.hide();
+        $AairportsDD.hide();
+        $DairlinesDD.hide();
+        $DairportsDD.hide();
+        $Dtime.hide();
+        $Atime.hide();
+        $searchBtn.hide();
+
+        $.when(GetAirlines(), GetAirports(), GetFlights()).done(function (a, b, c) {
+            $('#div1').hide(100);
+            $structure.show(300);
+            $searchBtn.show(100);
+
+            //airlines, airports, flights;
+            $.each(airlines, function () {
+                $DairlinesDD.append($("<option />").val(this.code).text(this.name));
+                $AairlinesDD.append($("<option />").val(this.code).text(this.name));
+            });
+            $DairlinesDD.show(200);
+            $AairlinesDD.show(200);
+            $Dtime.show(200);
+
+            $.each(airports, function () {
+                $DairportsDD.append($("<option />").val(this.code).text(this.name));
+                $AairportsDD.append($("<option />").val(this.code).text(this.name));
+            });
+            $DairportsDD.show(200);
+            $AairportsDD.show(200);
+            $Atime.show(200);
+        });
+
+        // First Time
+        let selected = $DairportsDD.val();
+        $Dtime.empty();
+        $Atime.empty();
+
+        $.each(flights, function () {
+            if (this.departureAirport == "YUL") {
+                $Dtime.append($("<option />").val(this.id).text(this.departureTime));
+                $Atime.append($("<option />").val(this.id).text(this.arrivalTime));
+            }
+        });
+
+        // Departure | On Airport name changes
+        $DairportsDD.change(function () {
+            $Dtime.empty();
+            let selected = $DairportsDD.val();
+            $.each(flights, function () {
+                if (this.departureAirport == selected) {
+                    $Dtime.append($("<option />").val(this.id).text(this.departureTime));
+                }
+            });
+        });
+
+        // Arrival | On Airport name changes | TODO: will move both to a function to avoid duplications
+        $AairportsDD.change(function () {
+            $Atime.empty();
+            let selected = $AairportsDD.val();
+            $.each(flights, function () {
+                if (this.departureAirport == selected) {
+                    $Atime.append($("<option />").val(this.id).text(this.arrivalTime));
+                }
+            });
+        });
+
+        $searchBtn.click(function () {
+            getAvailableFlights();
+        });
+
+
+    });
+
+    function getAvailableFlights() {
+
+        $('#div1').show(100);
+        let arrival_airport = $AairportsDD.val();
+        let departure_airport = $DairportsDD.val();
+        let departure_time = $('#Dtime option:selected').text();
+        let arrival_time = $('#Atime option:selected').text();
+
+        console.log(arrival_airport, departure_airport, departure_time, arrival_time);
+
+        let postData = {
+            'arrival_airport': arrival_airport,
+            'departure_airport': departure_airport,
+            'arrival_time': arrival_time,
+            'departure_time': departure_time
+        };
+
+        $.ajax({
+            url:        getFlightsAPI,
+            data:       postData,
+            success:    function(returnedData, textStatus, jqXHR ){
+                /*
+                airline: "AC"
+                arrivalAirport: "YVR"
+                arrivalTime: "2021-02-01T10:05:00-05:00"
+                departureAirport: "YUL"
+                departureTime: "2021-02-01T07:35:00-05:00"
+                id: 1
+                number: 301
+                price: 373.23
+                 */
+                $('#div1').hide(100);
+                var data = JSON.parse(returnedData);
+                if (data) {
+                    $('#resultRow').html('');
+                    $.each(data, function () {
+                        $('#resultRow').html($('#resultRow').html() + "<br><br><br>" +
+                            "<h2>Price: " + this.price + "</h2><br><br></br>" +
+                            "Airline: " + this.airline + "<br>" +
+                            "Flight Number: " + this.number + "<br>" +
+                            "From " + this.departureAirport + " at " + this.departureTime + "<br>" +
+                            "To " + this.arrivalAirport + " at " + this.arrivalTime + "<br><hr>"
+                        );
+                    });
+                };
+            },
+            dataType:   'text',
+            type:       'POST'
+        });
+    }
+
+    async function GetAirlines() {
+        await $.get(airlinesApi, function (data) {
+            airlines = data;
+        });
+    }
+
+    async function GetAirports() {
+        await $.get(airportsApi, function (data) {
+            airports = data;
+        });
+    }
+
+    async function GetFlights() {
+        await $.get(flightsApi, function (data) {
+            flights = data;
+        });
+    }
+</script>
+</body>
+</html>
